@@ -81,7 +81,7 @@ st.logo("logo.png")
 # @st.cache_data(ttl=1200) #20min
 @st.cache_data(ttl=86400)
 def load_data():
-    df = pd.read_excel("/Users/private/Library/CloudStorage/OneDrive-SharedLibraries-StudentConsultant/Business - Documents/General/03. Deliverables/Dummydata_BI.xlsx")
+    df = pd.read_excel("Dummydata_BI.xlsx")
     df["Datum & tijd"] = pd.to_datetime(df["Datum & tijd"])
     return df
 
