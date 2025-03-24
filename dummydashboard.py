@@ -1216,10 +1216,11 @@ if "Temp" in df_filtered.columns and not df_filtered["Temp"].isnull().all():
 
         # ▸ Correct kleurgebruik via numeriek delta + 'normal'
         st.metric(
-            label=f"Gesimuleerd verbruik bij {temp_shift:+}°C",
+            label=f"Gesimuleerd gemiddeld verbruik bij {temp_shift:+}°C",
             value=f"{verbruik_simulatie:,.0f} {eenheid_simulatie}",
             delta=f"{delta_pct:.2f}%",
             delta_color="inverse",
+            help="Gemiddeld verbruik over de geselecteerde periode bij deze temperatuurverschuiving"
         )
 
         # ▸ Visualisatie
