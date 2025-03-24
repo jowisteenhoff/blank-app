@@ -1,9 +1,15 @@
+
 import streamlit as st
 import plotly.express as px
 import pandas as pd
 import warnings
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import make_pipeline
+import plotly.graph_objects as go
 warnings.filterwarnings('ignore')
 
+# TO RUN IN TERMINAL
 #streamlit run /Users/private/Library/CloudStorage/OneDrive-SharedLibraries-StudentConsultant/Business\ -\ Documents/General/03.\ Deliverables/Dummydashboard.py
 
 
@@ -16,12 +22,12 @@ st.markdown(
     <style>
         /* Pas de breedte van de sidebar aan */
         section[data-testid="stSidebar"] {
-            width: 27% !important;  /* Maak de sidebar smaller */
+            width: 15% !important;  /* Maak de sidebar smaller */
         }
 
         /* Pas de hoofdcontent aan zodat deze beter uitlijnt */
         section.main {
-            margin-left: 10% !important;  /* Zorgt voor betere uitlijning */
+            margin-left: 0% !important;  /* Zorgt voor betere uitlijning */
         }
 
         "<h1 style='font-size: 90px;'>ENERGIE DASHBOARD</h1>", 
@@ -81,6 +87,7 @@ st.logo("logo.png")
 # @st.cache_data(ttl=1200) #20min
 @st.cache_data(ttl=86400)
 def load_data():
+    # df = pd.read_excel("/Users/private/Library/CloudStorage/OneDrive-SharedLibraries-StudentConsultant/Business - Documents/General/03. Deliverables/Dummydata/Dummydata_BI.xlsx")
     df = pd.read_excel("Dummydata_BI.xlsx")
     df["Datum & tijd"] = pd.to_datetime(df["Datum & tijd"])
     return df
@@ -286,7 +293,13 @@ CO2_FACTOR = {
 
 
 
-# ---------------------VISUALISATIE LIJNPLOT------------------------ # 
+
+
+
+
+
+
+# --------------------- YEAR TO YEAR ------------------------ # 
 st.subheader(f"YEAR TO YEAR OVERZICHT {energie_selectie.upper()}")
 
 # ---- VOORBEREIDING ---- #
@@ -317,8 +330,50 @@ def calc_delta(curr, prev):
 
 eenheid = bepaal_eenheid_metric(energie_selectie)
 
+# ---------CO2 doelen ------------
+# CO₂-uitstoot in 2020 per locatie en energiestroom (placeholder-waarden!)
+co2_2020_dict = {
+    "Loosduinen": {"Gas": 440000, "Elektriciteit": 255000},
+    "Royal&Rustiek": {"Gas": 350000, "Elektriciteit": 120000},
+    "Mechropa": {"Gas": 56000, "Elektriciteit": 28000},
+}
+
+# Bereken CO₂-uitstoot per jaar (voor veiligheid opnieuw gedefinieerd)
+if energie_selectie in CO2_FACTOR and energie_selectie in v_norm:
+    co2_per_jaar = {
+        jaar: v_norm[energie_selectie].get(jaar, 0) * CO2_FACTOR[energie_selectie].get(jaar, 0)
+        for jaar in [2023, 2024, 2025]
+    }
+else:
+    co2_per_jaar = {}
+
 # ---- METRICS WEERGAVE ---- #
 st.subheader(f"{locatie_selectie} – {energie_selectie}")
+# Haal CO₂-uitstoot in 2024 op uit huidige data
+if (
+    locatie_selectie in co2_2020_dict
+    and energie_selectie in co2_2020_dict[locatie_selectie]
+    and energie_selectie in CO2_FACTOR
+    and 2024 in co2_per_jaar
+):
+    co2_2020 = co2_2020_dict[locatie_selectie][energie_selectie]
+    co2_2024 = co2_per_jaar[2024]
+
+    reductie = co2_2020 - co2_2024
+    reductie_pct = (reductie / co2_2020) * 100
+    doel_50pct = co2_2020 * 0.5
+    nog_te_gaan = max(0, doel_50pct - reductie)
+    nog_te_gaan_pct = (nog_te_gaan / co2_2020) * 100
+
+    st.warning(
+        f"**SAFFIER-DOELSTELLING: 50% MINDER CO₂ TEN OPZICHTE VAN 2020**  \n"
+        f"In 2020 stootte **{locatie_selectie}** door **{energie_selectie}** circa **{co2_2020:,.0f} kg CO₂** uit.  \n"
+        f"In 2024 is dat gedaald naar **{co2_2024:,.0f} kg CO₂** — een afname van **{reductie_pct:.1f}%**.  \n\n"
+        f"Er moet nog **{nog_te_gaan_pct:.1f}%** extra CO₂ bespaard worden (**{nog_te_gaan:,.0f} kg CO₂**) om het doel van 50% reductie te halen."
+    )
+else:
+    st.info("Geen CO₂-doeldata beschikbaar voor deze locatie/energiestroom combinatie.")
+
 col_links, col_rechts = st.columns(2)
 
 with col_links:
@@ -340,46 +395,62 @@ with col_links:
         delta_k = calc_delta(kosten, prev * kosten_tarief[energie_selectie].get(jaar - 1, 0)) if prev else "NVT"
         delta_c = calc_delta(co2, prev * co2_factor.get(jaar - 1, 0)) if prev and energie_selectie in CO2_FACTOR else "NVT"
 
+        delta_color_v = "inverse" if delta_v != "NVT" else "off"
+        delta_color_k = "inverse" if delta_k != "NVT" else "off"
+        delta_color_c = "inverse" if delta_c != "NVT" else "off"
+
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric(f"Verbruik {jaar}", f"{verbruik:,.0f} {eenheid}", delta=delta_v)
+            st.metric(f"Verbruik {jaar} in {eenheid}", f"{verbruik:,.0f}", delta=delta_v, delta_color=delta_color_v)
         with c2:
-            st.metric(f"Kosten {jaar}", f"€{kosten:,.2f}", delta=delta_k)
+            st.metric(f"Kosten {jaar}", f"€{kosten:,.2f}", delta=delta_k, delta_color=delta_color_k)
         with c3:
             if co2 is not None:
-                st.metric(f"CO₂-uitstoot {jaar}", f"{co2:,.0f} kg", delta=delta_c)
-
+                st.metric(f"CO₂-uitstoot {jaar} in kg", f"{co2:,.0f}", delta=delta_c, delta_color=delta_color_c)
 
 with col_rechts:
     st.markdown("### Gecorrigeerd verbruik")
-    for jaar in [2023, 2024, 2025]:
-        verbruik = v_corr[energie_selectie].get(jaar, 0)
-        kosten = verbruik * kosten_tarief[energie_selectie][jaar]
-        co2 = verbruik * co2_factor.get(jaar, 0) if energie_selectie in CO2_FACTOR else None
 
-        # Vergelijk 2024 vs 2023 en 2025 vs referentie 2024
-        if jaar == 2024:
-            prev = v_corr[energie_selectie].get(2023, 0)
-        elif jaar == 2025:
-            prev = r_corr[energie_selectie].get(2024, 0)
-        else:
-            prev = None
+    jaren = [2023, 2024, 2025]
 
-        delta_v = calc_delta(verbruik, prev) if prev else "NVT"
-        delta_k = calc_delta(kosten, prev * kosten_tarief[energie_selectie].get(jaar - 1, 0)) if prev else "NVT"
-        delta_c = calc_delta(co2, prev * co2_factor.get(jaar - 1, 0)) if prev and energie_selectie in CO2_FACTOR else "NVT"
+    verbruiken = [
+        v_corr.get(energie_selectie, {}).get(jaar, 0) or 0
+        for jaar in jaren
+    ]
 
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric(f"Verbruik {jaar}", f"{verbruik:,.0f} {eenheid}", delta=delta_v)
-        with c2:
-            st.metric(f"Kosten {jaar}", f"€{kosten:,.2f}", delta=delta_k)
-        with c3:
-            if co2 is not None:
-                st.metric(f"CO₂-uitstoot {jaar}", f"{co2:,.0f} kg", delta=delta_c)
+    if not any(verbruiken):  # dit is True als alles 0 of None is
+        st.warning("Voor deze locatie is geen bruikbaar temperatuur-gecorrigeerd verbruik beschikbaar.")
+    else:
+        for jaar in jaren:
+            verbruik = v_corr.get(energie_selectie, {}).get(jaar, 0)
+            kosten = verbruik * kosten_tarief[energie_selectie][jaar]
+            co2 = verbruik * co2_factor.get(jaar, 0) if energie_selectie in CO2_FACTOR else None
+
+            if jaar == 2024:
+                prev = v_corr.get(energie_selectie, {}).get(2023, 0)
+            elif jaar == 2025:
+                prev = r_corr.get(energie_selectie, {}).get(2024, 0)
+            else:
+                prev = None
+
+            delta_v = calc_delta(verbruik, prev) if prev else "NVT"
+            delta_k = calc_delta(kosten, prev * kosten_tarief[energie_selectie].get(jaar - 1, 0)) if prev else "NVT"
+            delta_c = calc_delta(co2, prev * co2_factor.get(jaar - 1, 0)) if prev and energie_selectie in CO2_FACTOR else "NVT"
+
+            delta_color_v = "inverse" if delta_v != "NVT" else "off"
+            delta_color_k = "inverse" if delta_k != "NVT" else "off"
+            delta_color_c = "inverse" if delta_c != "NVT" else "off"
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric(f"Verbruik {jaar} in {eenheid}", f"{verbruik:,.0f}", delta=delta_v, delta_color=delta_color_v)
+            with c2:
+                st.metric(f"Kosten {jaar}", f"€{kosten:,.2f}", delta=delta_k, delta_color=delta_color_k)
+            with c3:
+                if co2 is not None:
+                    st.metric(f"CO₂-uitstoot {jaar} in kg", f"{co2:,.0f}", delta=delta_c, delta_color=delta_color_c)
+
 st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
-
-
 
 
 
@@ -495,7 +566,30 @@ if energie_selectie == "Elektriciteit":  # Alleen tonen bij elektriciteit
         )
 
         st.plotly_chart(fig, use_container_width=True)
+
+       # METRICS zonne-opbrengst, CO₂ en bomen
+        totale_opbrengst = df_zonnepanelen["Verbruik totaal"].sum()
+
+        # CO₂-besparing (in kg) en bomen-equivalent
+        co2_bespaard = totale_opbrengst * 0.268  # vuistregel: 0.268 kg CO₂ bespaard per opgewekte kWh
+        bomen_equivalent = co2_bespaard / 20  # vuistregel: 1 boom compenseert 20 kg CO₂ per jaar
+
+        # Maak 5 kolommen (lege aan de buitenzijden voor centrering)
+        cols = st.columns([1, 3, 3, 3, 1])  # verhoudingen: lege, inhoud, inhoud, inhoud, lege
+
+        with cols[1]:
+            st.metric("Totale zonne-opbrengst", f"{totale_opbrengst:,.0f} kWh")
+
+        with cols[2]:
+            st.metric("CO₂-besparing", f"{co2_bespaard:,.0f} kg")
+
+        with cols[3]:
+            st.metric("Equivalent aantal bomen", f"{bomen_equivalent:,.0f}")
+
+
 st.markdown("<br><br><br>", unsafe_allow_html=True)
+
+
 
 
 
@@ -600,7 +694,9 @@ else:
 
     for i, jaar in enumerate(beschikbare_jaren):
         delta = delta_2024 if jaar == 2024 else (delta_2025 if jaar == 2025 else "NVT")
-        delta_color = "inverse" if isinstance(delta, (int, float)) and delta < 0 else "normal" if isinstance(delta, (int, float)) else "off"
+        #delta_color = "inverse" if isinstance(delta, (int, float)) and delta < 0 else "normal" if isinstance(delta, (int, float)) else "off"
+        delta_color = "inverse" if isinstance(delta, (int, float)) else "off"
+
 
         kolommen[i].metric(
             label=f"Verbruik {maand_optie} {jaar}",
@@ -687,7 +783,23 @@ else:
     st.plotly_chart(fig_kwartaal, use_container_width=True)
 
     # ==================== TOTAAL VERBRUIK PER KWARTAAL ==================== #
+    # Bepaal het maximale dagnummer in 2025 voor het geselecteerde kwartaal
+    laatste_dag_2025 = (
+        df_kwartaal[df_kwartaal["Year"] == 2025]["Dag"].max()
+        if 2025 in df_kwartaal["Year"].unique()
+        else None
+    )
+
+    # Filter de referentieperiode in 2024 op dezelfde daggrens
+    if laatste_dag_2025:
+        df_kwartaal = df_kwartaal[
+            (df_kwartaal["Year"] != 2024) |
+            ((df_kwartaal["Year"] == 2024) & (df_kwartaal["Dag"] <= laatste_dag_2025))
+        ]
+
+    # Verbruik per jaar binnen kwartaal (met 2024 beperkt tot max dag 2025)
     df_verbruik_kwartaal = df_kwartaal.groupby("Year")[y_value].sum().reset_index()
+
     df_verbruik_kwartaal.columns = ["Jaar", "Totaal Verbruik"]
 
     # Alleen jaren opslaan die daadwerkelijk data hebben
@@ -710,7 +822,9 @@ else:
 
     for i, jaar in enumerate(beschikbare_jaren):
         delta = delta_2024 if jaar == 2024 else (delta_2025 if jaar == 2025 else "NVT")
-        delta_color = "inverse" if isinstance(delta, (int, float)) and delta < 0 else "normal" if isinstance(delta, (int, float)) else "off"
+        #delta_color = "inverse" if isinstance(delta, (int, float)) and delta < 0 else "normal" if isinstance(delta, (int, float)) else "off"
+        delta_color = "inverse" if isinstance(delta, (int, float)) else "off"
+
 
         with kolommen[i]:
             st.metric(
@@ -820,7 +934,7 @@ else:
 
     for i, jaar in enumerate(beschikbare_jaren):
         delta = delta_2024 if jaar == 2024 else (delta_2025 if jaar == 2025 else "NVT")
-        delta_color = "inverse" if isinstance(delta, (int, float)) and delta < 0 else "normal" if isinstance(delta, (int, float)) else "off"
+        delta_color = "inverse" if isinstance(delta, (int, float)) else "off"
 
         with kolommen[i]:
             st.metric(
@@ -1063,16 +1177,13 @@ st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
 
 
 
+
+
 # ==================== SIMULATIE EFFECT TEMPERATUUR (POLYNOMIAAL) ==================== #
 st.subheader("SIMULATIE: EFFECT VAN TEMPERATUUR OP VERBRUIK")
 
 # Alleen tonen als temperatuur beschikbaar is
 if "Temp" in df_filtered.columns and not df_filtered["Temp"].isnull().all():
-
-    from sklearn.linear_model import LinearRegression
-    from sklearn.preprocessing import PolynomialFeatures
-    from sklearn.pipeline import make_pipeline
-    import plotly.graph_objects as go
 
     # ▸ Slider voor temperatuurverschuiving
     temp_shift = st.slider("Simuleer temperatuurverandering (in °C)", -5, 5, 2)
@@ -1134,9 +1245,6 @@ if "Temp" in df_filtered.columns and not df_filtered["Temp"].isnull().all():
 else:
     st.info("Temperatuurdata niet beschikbaar voor deze selectie.")
 st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
-
-
-
 
 
 
