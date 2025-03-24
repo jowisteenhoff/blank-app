@@ -3,3 +3,6 @@ pandas
 numpy
 plotly
 openpyxl
+sklearn.linear_model
+sklearn.preprocessing
+sklearn.pipeline
