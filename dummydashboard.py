@@ -1020,7 +1020,17 @@ df_peaks = df_piek[df_piek["Is_Peak"]].copy()
 aantal_pieken = len(df_peaks)
 
 # Visualisatie: Lijngrafiek met pieken en trendlijn
-fig = px.line(df_piek, x="Datum & tijd", y=y_value, title=f"")
+fig = px.line(
+    df_piek,
+    x="Datum & tijd",
+    y=y_value,
+    title="Piekdetectieanalyse",
+    labels={
+        y_value: bepaal_eenheid(energie_selectie, corrigeer_temp),  # y-as label
+        "Datum & tijd": "Datum"  # x-as label
+    }
+)
+
 
 # Trendlijn toevoegen
 fig.add_scatter(x=df_piek["Datum & tijd"], y=df_piek["Moving_Avg"], mode='lines', name="Trendlijn (Moving Average)")
@@ -1222,6 +1232,7 @@ if "Temp" in df_filtered.columns and not df_filtered["Temp"].isnull().all():
             delta_color="inverse",
             help="Gemiddeld verbruik over de geselecteerde periode bij deze temperatuurverschuiving"
         )
+        st.warning("⚠️   Deze simulatie is gebaseerd op gemiddelden en generaliseert de data. Interpreteer de resultaten met voorzichtigheid.")
 
         # ▸ Visualisatie
         fig = go.Figure()
@@ -1246,8 +1257,6 @@ if "Temp" in df_filtered.columns and not df_filtered["Temp"].isnull().all():
 else:
     st.info("Temperatuurdata niet beschikbaar voor deze selectie.")
 st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
-
-
 
 
 
@@ -1305,38 +1314,34 @@ else:
 
     # **Controleer of er bruikbare data is na filtering**
     if df_locatie_benchmark[kolom_te_tonen].notnull().sum() == 0:
-        st.warning("⚠️ Geen bruikbare verbruik per m² data beschikbaar.")
+        st.warning("⚠️   Geen bruikbare verbruik per m² data beschikbaar.")
     else:
         # **Barplot van verbruik per m²**
         fig = px.bar(
             df_locatie_benchmark.dropna(subset=[kolom_te_tonen]),  # Verwijder locaties zonder oppervlakte
             x="Location",
             y=kolom_te_tonen,
-            title=f"Verbruik per m² voor {energie_selectie}",
-            labels={"Location": "Locatie", kolom_te_tonen: f"Verbruik ({eenheid})"},
-            color="Location",
-            barmode="group",
-            width=600,
+            title=f"{energie_selectie} verbruik per m² ",
+            labels={
+                "Location": "Locatie",
+                kolom_te_tonen: f"Verbruik in {eenheid}"  # Zet de eenheid hier!
+        },
+        color="Location",
+        barmode="group",
+        width=600,
         )
 
-        # **Grafiek Layout Updaten**
+        # Layout aanpassen zonder y-as titel hard in te stellen
         fig.update_layout(
-            xaxis_title="",
-            yaxis_title=f"Verbruik per m²",
+            xaxis_title="",  # Laat y-as automatisch via labels komen
             showlegend=False,
         )
 
+        
+
         # **Toon de grafiek**
         st.plotly_chart(fig, use_container_width=True)
+        st.warning("⚠️   De vergelijking tussen locaties geeft interessante inzichten, maar moet voorzichtig geïnterpreteerd worden. Elke locatie heeft unieke omstandigheden die de verbruiksdata beïnvloeden, zoals bouwjaar, installaties, bezetting en zorgzwaarte.")
+
 st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
 
